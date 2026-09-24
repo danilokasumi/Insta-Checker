@@ -2,70 +2,270 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Insta Unfollower Checker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Insta Unfollower</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #000; color: #fff; padding: 20px; margin: 0; }
-        h1 { font-size: 22px; text-align: center; margin-bottom: 20px; color: #f5f5f5; }
-        .box { background: #1c1c1e; border-radius: 12px; padding: 16px; margin-bottom: 15px; border: 1px solid #2c2c2e; }
-        label { font-weight: bold; display: block; margin-bottom: 8px; font-size: 14px; color: #aaa; }
-        input[type="file"] { display: block; width: 100%; color: #8e8e93; font-size: 14px; }
-        button { width: 100%; background: #007aff; color: white; border: none; padding: 14px; border-radius: 10px; font-size: 16px; font-weight: bold; margin-top: 10px; cursor: pointer; }
-        button:active { background: #0056b3; }
-        .results { margin-top: 20px; }
-        ul { list-style-type: none; padding: 0; margin: 0; }
-        li { background: #1c1c1e; padding: 12px 16px; border-radius: 10px; margin-bottom: 8px; font-size: 15px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #2c2c2e; }
-        a { color: #3897f0; text-decoration: none; font-weight: bold; font-size: 13px; background: #2c2c2e; padding: 6px 12px; border-radius: 6px; }
-        .stats-box { background: #1c1c1e; border: 1px solid #0a84ff; padding: 12px; border-radius: 10px; text-align: center; margin-bottom: 15px; font-size: 14px; color: #64d2ff; }
-        .count { text-align: center; font-size: 15px; color: #ff453a; margin-bottom: 15px; font-weight: bold; }
-        .error { color: #ff453a; background: #2c1c1c; padding: 12px; border-radius: 10px; margin-top: 10px; text-align: center; font-size: 14px; border: 1px solid #5a2222; }
+        :root {
+            --bg-color: #000000;
+            --card-bg: #1c1c1e;
+            --accent-blue: #007aff;
+            --accent-blue-active: #0056b3;
+            --text-main: #ffffff;
+            --text-muted: #8e8e93;
+            --danger-red: #ff453a;
+            --success-green: #30d158;
+            --border-color: #2c2c2e;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            padding: 24px 16px;
+            margin: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .container {
+            max-width: 440px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 26px;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 24px;
+            letter-spacing: -0.5px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 16px;
+            border: 1px solid var(--border-color);
+        }
+
+        .card-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        /* Hässliche Standard-Inputs verstecken und durch blaue Buttons ersetzen */
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-btn, .action-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 48px;
+            background-color: var(--accent-blue);
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 10px;
+            border: none;
+            cursor: pointer;
+            box-sizing: border-box;
+            transition: background-color 0.15s ease, transform 0.1s ease;
+            text-align: center;
+        }
+
+        .file-btn:active, .action-btn:active {
+            background-color: var(--accent-blue-active);
+            transform: scale(0.98);
+        }
+
+        .file-btn.loaded {
+            background-color: #34c759;
+        }
+
+        .file-status {
+            font-size: 13px;
+            color: var(--text-muted);
+            text-align: center;
+            margin-top: 8px;
+            word-break: break-all;
+        }
+
+        .action-btn {
+            margin-top: 24px;
+            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
+        }
+
+        .results {
+            margin-top: 24px;
+        }
+
+        .stats-badge {
+            background: rgba(0, 122, 255, 0.15);
+            border: 1px solid var(--accent-blue);
+            color: #64d2ff;
+            border-radius: 10px;
+            padding: 12px;
+            text-align: center;
+            font-size: 14px;
+            margin-bottom: 20px;
+            line-height: 1.4;
+        }
+
+        .count-header {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--danger-red);
+            text-align: center;
+            margin-bottom: 12px;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        li {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 14px 16px;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .user-name {
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .insta-link {
+            background: #2c2c2e;
+            color: var(--accent-blue);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 6px 14px;
+            border-radius: 8px;
+        }
+
+        .insta-link:active {
+            background: #3a3a3c;
+        }
+
+        .alert-box {
+            padding: 14px;
+            border-radius: 12px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .alert-error {
+            background: rgba(255, 69, 58, 0.15);
+            border: 1px solid var(--danger-red);
+            color: var(--danger-red);
+        }
+
+        .alert-success {
+            background: rgba(48, 209, 88, 0.15);
+            border: 1px solid var(--success-green);
+            color: var(--success-green);
+        }
     </style>
 </head>
 <body>
 
-    <h1>Insta Unfollower Checker</h1>
+    <div class="container">
+        <h1>Insta Unfollower</h1>
 
-    <div class="box">
-        <label>1. Datei wählen: <code>followers_1.json</code></label>
-        <input type="file" id="followersFile" accept=".json">
+        <div class="card">
+            <span class="card-label">1. Follower Datei</span>
+            <label for="followersFile" class="file-btn" id="lblFollowers">followers_1.json wählen</label>
+            <input type="file" id="followersFile" accept=".json" onchange="updateFileName('followersFile', 'lblFollowers', 'statusFollowers')">
+            <div class="file-status" id="statusFollowers">Keine Datei ausgewählt</div>
+        </div>
+
+        <div class="card">
+            <span class="card-label">2. Gefolgt Datei</span>
+            <label for="followingFile" class="file-btn" id="lblFollowing">following.json wählen</label>
+            <input type="file" id="followingFile" accept=".json" onchange="updateFileName('followingFile', 'lblFollowing', 'statusFollowing')">
+            <div class="file-status" id="statusFollowing">Keine Datei ausgewählt</div>
+        </div>
+
+        <button class="action-btn" onclick="analyze()">Auswerten</button>
+
+        <div class="results" id="output"></div>
     </div>
-
-    <div class="box">
-        <label>2. Datei wählen: <code>following.json</code></label>
-        <input type="file" id="followingFile" accept=".json">
-    </div>
-
-    <button onclick="analyze()">Präzise Auswerten</button>
-
-    <div class="results" id="output"></div>
 
     <script>
-        // Extrahiert gezielt Follower aus der Meta-Struktur
-        function parseFollowers(data) {
-            let set = new Set();
-            let list = Array.isArray(data) ? data : [];
-            list.forEach(item => {
-                if (item.string_list_data && item.string_list_data.length > 0) {
-                    let val = item.string_list_data[0].value;
-                    if (val) set.add(val.toLowerCase().trim());
-                }
-            });
-            return set;
+        function updateFileName(inputId, btnId, statusId) {
+            const input = document.getElementById(inputId);
+            const btn = document.getElementById(btnId);
+            const status = document.getElementById(statusId);
+
+            if (input.files.length > 0) {
+                btn.classList.add('loaded');
+                btn.innerText = '✓ Datei geladen';
+                status.innerText = input.files[0].name;
+                status.style.color = '#30d158';
+            }
         }
 
-        // Extrahiert gezielt Gefolgte (schließt Anfragen & Hashtags aus)
-        function parseFollowing(data) {
-            let set = new Set();
-            // Meta speichert Gefolgte entweder unter 'relationships_following' oder direkt als Array
-            let list = data.relationships_following || (Array.isArray(data) ? data : []);
-            
-            list.forEach(item => {
-                if (item.string_list_data && item.string_list_data.length > 0) {
-                    let val = item.string_list_data[0].value;
-                    if (val) set.add(val.toLowerCase().trim());
+        // Aggressiver Extraktor für Usernamen aus jedem Meta-Format
+        function extractUsernames(jsonObj) {
+            let usernames = new Set();
+
+            function scan(obj) {
+                if (!obj) return;
+
+                if (Array.isArray(obj)) {
+                    obj.forEach(item => scan(item));
+                } else if (typeof obj === 'object') {
+                    // Instagram Verschachtelung Typ 1
+                    if (obj.string_list_data && Array.isArray(obj.string_list_data)) {
+                        obj.string_list_data.forEach(s => {
+                            if (s && s.value) {
+                                usernames.add(cleanName(s.value));
+                            }
+                        });
+                    }
+                    // Instagram Verschachtelung Typ 2
+                    if (obj.value && typeof obj.value === 'string') {
+                        if (!obj.value.startsWith('http') && !obj.value.includes(' ')) {
+                            usernames.add(cleanName(obj.value));
+                        }
+                    }
+                    // Instagram Verschachtelung Typ 3
+                    if (obj.title && typeof obj.title === 'string') {
+                        if (!obj.title.includes(' ') && obj.title.length > 0) {
+                            usernames.add(cleanName(obj.title));
+                        }
+                    }
+
+                    for (let key in obj) {
+                        if (obj.hasOwnProperty(key)) {
+                            scan(obj[key]);
+                        }
+                    }
                 }
-            });
-            return set;
+            }
+
+            scan(jsonObj);
+            return usernames;
+        }
+
+        function cleanName(val) {
+            return val.toLowerCase().replace(/[^a-z0-9._]/g, '').trim();
         }
 
         async function analyze() {
@@ -76,7 +276,7 @@
             output.innerHTML = '';
 
             if (!fInput.files[0] || !fgInput.files[0]) {
-                output.innerHTML = '<div class="error">Bitte beide Dateien auswählen!</div>';
+                output.innerHTML = '<div class="alert-box alert-error">Bitte beide Dateien auswählen!</div>';
                 return;
             }
 
@@ -84,15 +284,12 @@
                 const fText = await fInput.files[0].text();
                 const fgText = await fgInput.files[0].text();
 
-                const followersData = JSON.parse(fText);
-                const followingData = JSON.parse(fgText);
-
-                const followersSet = parseFollowers(followersData);
-                const followingSet = parseFollowing(followingData);
+                const followersSet = extractUsernames(JSON.parse(fText));
+                const followingSet = extractUsernames(JSON.parse(fgText));
 
                 let notFollowingBack = [];
                 followingSet.forEach(user => {
-                    if (!followersSet.has(user)) {
+                    if (user && user.length > 0 && !followersSet.has(user)) {
                         notFollowingBack.push(user);
                     }
                 });
@@ -100,20 +297,25 @@
                 notFollowingBack.sort();
 
                 let statsHtml = `
-                    <div class="stats-box">
-                        Echte Follower in Datei: <b>${followersSet.size}</b><br>
-                        Echte Gefolgte Konten: <b>${followingSet.size}</b>
+                    <div class="stats-badge">
+                        Gelesen aus Datei:<br>
+                        <b>${followersSet.size}</b> Follower | <b>${followingSet.size}</b> Gefolgt
                     </div>
                 `;
 
+                if (followersSet.size === 0) {
+                    output.innerHTML = '<div class="alert-box alert-error">Fehler: 0 Follower in "followers_1.json" gefunden. Bitte prüfe die Datei!</div>';
+                    return;
+                }
+
                 if (notFollowingBack.length === 0) {
-                    output.innerHTML = statsHtml + '<div style="text-align:center; color:#30d158; font-weight:bold;">🎉 Alle Personen, denen du folgst, folgen dir auch zurück!</div>';
+                    output.innerHTML = statsHtml + '<div class="alert-box alert-success">🎉 Alle Konten, denen du folgst, folgen dir zurück!</div>';
                 } else {
-                    let html = statsHtml + `<div class="count">${notFollowingBack.length} Personen folgen dir nicht zurück:</div><ul>`;
+                    let html = statsHtml + `<div class="count-header">${notFollowingBack.length} Personen folgen dir nicht zurück:</div><ul>`;
                     notFollowingBack.forEach(username => {
                         html += `<li>
-                            <span>@${username}</span>
-                            <a href="https://instagram.com/${username}" target="_blank" rel="noopener">Profil</a>
+                            <span class="user-name">@${username}</span>
+                            <a href="https://instagram.com/${username}" target="_blank" rel="noopener" class="insta-link">Profil</a>
                         </li>`;
                     });
                     html += '</ul>';
@@ -121,7 +323,7 @@
                 }
 
             } catch (err) {
-                output.innerHTML = `<div class="error">Fehler beim Verarbeiten: ${err.message}</div>`;
+                output.innerHTML = `<div class="alert-box alert-error">Fehler beim Lesen: ${err.message}</div>`;
             }
         }
     </script>
