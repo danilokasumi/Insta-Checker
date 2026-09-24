@@ -16,9 +16,9 @@
         ul { list-style-type: none; padding: 0; margin: 0; }
         li { background: #1c1c1e; padding: 12px 16px; border-radius: 10px; margin-bottom: 8px; font-size: 15px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #2c2c2e; }
         a { color: #3897f0; text-decoration: none; font-weight: bold; font-size: 13px; background: #2c2c2e; padding: 6px 12px; border-radius: 6px; }
+        .stats-box { background: #1c1c1e; border: 1px solid #0a84ff; padding: 12px; border-radius: 10px; text-align: center; margin-bottom: 15px; font-size: 14px; color: #64d2ff; }
         .count { text-align: center; font-size: 15px; color: #ff453a; margin-bottom: 15px; font-weight: bold; }
         .error { color: #ff453a; background: #2c1c1c; padding: 12px; border-radius: 10px; margin-top: 10px; text-align: center; font-size: 14px; border: 1px solid #5a2222; }
-        .success { color: #30d158; background: #1c2c1c; padding: 12px; border-radius: 10px; margin-top: 10px; text-align: center; font-size: 14px; border: 1px solid #225a22; }
     </style>
 </head>
 <body>
@@ -35,120 +35,94 @@
         <input type="file" id="followingFile" accept=".json">
     </div>
 
-    <button onclick="analyze()">Auswerten</button>
+    <button onclick="analyze()">Präzise Auswerten</button>
 
     <div class="results" id="output"></div>
 
     <script>
-        // Universelle Funktion zum Auslesen von Usernames aus Meta-JSON
-        function extractUsernames(jsonObj) {
-            let usernames = new Set();
-
-            function recursiveSearch(obj) {
-                if (!obj) return;
-
-                if (Array.isArray(obj)) {
-                    obj.forEach(item => recursiveSearch(item));
-                } else if (typeof obj === 'object') {
-                    // Typische Instagram JSON Struktur prüfen
-                    if (obj.string_list_data && Array.isArray(obj.string_list_data)) {
-                        obj.string_list_data.forEach(subItem => {
-                            if (subItem.value) usernames.add(subItem.value.toLowerCase().trim());
-                        });
-                    }
-                    if (obj.value) {
-                        usernames.add(obj.value.toLowerCase().trim());
-                    }
-                    if (obj.title && typeof obj.title === 'string' && !obj.title.includes(' ')) {
-                        usernames.add(obj.title.toLowerCase().trim());
-                    }
-
-                    // Rekursiv weiter durchsuchen
-                    for (let key in obj) {
-                        if (obj.hasOwnProperty(key)) {
-                            recursiveSearch(obj[key]);
-                        }
-                    }
+        // Extrahiert gezielt Follower aus der Meta-Struktur
+        function parseFollowers(data) {
+            let set = new Set();
+            let list = Array.isArray(data) ? data : [];
+            list.forEach(item => {
+                if (item.string_list_data && item.string_list_data.length > 0) {
+                    let val = item.string_list_data[0].value;
+                    if (val) set.add(val.toLowerCase().trim());
                 }
-            }
-
-            recursiveSearch(jsonObj);
-            return usernames;
+            });
+            return set;
         }
 
-        function analyze() {
-            const fFileInput = document.getElementById('followersFile');
-            const fgFileInput = document.getElementById('followingFile');
+        // Extrahiert gezielt Gefolgte (schließt Anfragen & Hashtags aus)
+        function parseFollowing(data) {
+            let set = new Set();
+            // Meta speichert Gefolgte entweder unter 'relationships_following' oder direkt als Array
+            let list = data.relationships_following || (Array.isArray(data) ? data : []);
+            
+            list.forEach(item => {
+                if (item.string_list_data && item.string_list_data.length > 0) {
+                    let val = item.string_list_data[0].value;
+                    if (val) set.add(val.toLowerCase().trim());
+                }
+            });
+            return set;
+        }
+
+        async function analyze() {
+            const fInput = document.getElementById('followersFile');
+            const fgInput = document.getElementById('followingFile');
             const output = document.getElementById('output');
 
             output.innerHTML = '';
 
-            const fFile = fFileInput.files[0];
-            const fgFile = fgFileInput.files[0];
-
-            if (!fFile || !fgFile) {
-                output.innerHTML = '<div class="error">Bitte wähle beide JSON-Dateien aus!</div>';
+            if (!fInput.files[0] || !fgInput.files[0]) {
+                output.innerHTML = '<div class="error">Bitte beide Dateien auswählen!</div>';
                 return;
             }
 
-            Promise.all([fFile.text(), fgFile.text()])
-                .then(([fText, fgText]) => {
-                    let followersData, followingData;
+            try {
+                const fText = await fInput.files[0].text();
+                const fgText = await fgInput.files[0].text();
 
-                    try {
-                        followersData = JSON.parse(fText);
-                    } catch (e) {
-                        output.innerHTML = '<div class="error">Fehler: Die Datei "followers_1.json" ist ungültig oder beschädigt.</div>';
-                        return;
+                const followersData = JSON.parse(fText);
+                const followingData = JSON.parse(fgText);
+
+                const followersSet = parseFollowers(followersData);
+                const followingSet = parseFollowing(followingData);
+
+                let notFollowingBack = [];
+                followingSet.forEach(user => {
+                    if (!followersSet.has(user)) {
+                        notFollowingBack.push(user);
                     }
-
-                    try {
-                        followingData = JSON.parse(fgText);
-                    } catch (e) {
-                        output.innerHTML = '<div class="error">Fehler: Die Datei "following.json" ist ungültig oder beschädigt.</div>';
-                        return;
-                    }
-
-                    const followersSet = extractUsernames(followersData);
-                    const followingSet = extractUsernames(followingData);
-
-                    if (followersSet.size === 0) {
-                        output.innerHTML = '<div class="error">Keine Follower in "followers_1.json" gefunden. Bitte prüfe, ob du die richtige Datei gewählt hast.</div>';
-                        return;
-                    }
-
-                    if (followingSet.size === 0) {
-                        output.innerHTML = '<div class="error">Keine gefolgten Konten in "following.json" gefunden. Bitte prüfe, ob du die richtige Datei gewählt hast.</div>';
-                        return;
-                    }
-
-                    let notFollowingBack = [];
-                    followingSet.forEach(user => {
-                        if (!followersSet.has(user)) {
-                            notFollowingBack.push(user);
-                        }
-                    });
-
-                    // Sortieren nach Name
-                    notFollowingBack.sort();
-
-                    if (notFollowingBack.length === 0) {
-                        output.innerHTML = '<div class="success">🎉 Super! Alle Personen, denen du folgst, folgen dir auch zurück.</div>';
-                    } else {
-                        let html = `<div class="count">${notFollowingBack.length} Personen folgen dir nicht zurück:</div><ul>`;
-                        notFollowingBack.forEach(username => {
-                            html += `<li>
-                                <span>@${username}</span>
-                                <a href="https://instagram.com/${username}" target="_blank" rel="noopener">Profil</a>
-                            </li>`;
-                        });
-                        html += '</ul>';
-                        output.innerHTML = html;
-                    }
-                })
-                .catch(err => {
-                    output.innerHTML = `<div class="error">Systemfehler beim Lesen der Dateien: ${err.message}</div>`;
                 });
+
+                notFollowingBack.sort();
+
+                let statsHtml = `
+                    <div class="stats-box">
+                        Echte Follower in Datei: <b>${followersSet.size}</b><br>
+                        Echte Gefolgte Konten: <b>${followingSet.size}</b>
+                    </div>
+                `;
+
+                if (notFollowingBack.length === 0) {
+                    output.innerHTML = statsHtml + '<div style="text-align:center; color:#30d158; font-weight:bold;">🎉 Alle Personen, denen du folgst, folgen dir auch zurück!</div>';
+                } else {
+                    let html = statsHtml + `<div class="count">${notFollowingBack.length} Personen folgen dir nicht zurück:</div><ul>`;
+                    notFollowingBack.forEach(username => {
+                        html += `<li>
+                            <span>@${username}</span>
+                            <a href="https://instagram.com/${username}" target="_blank" rel="noopener">Profil</a>
+                        </li>`;
+                    });
+                    html += '</ul>';
+                    output.innerHTML = html;
+                }
+
+            } catch (err) {
+                output.innerHTML = `<div class="error">Fehler beim Verarbeiten: ${err.message}</div>`;
+            }
         }
     </script>
 </body>
