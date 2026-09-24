@@ -20,7 +20,7 @@ jobs:
 
     - name: Abhängigkeiten installieren
       run: |
-        pip install google-api-python-client google-auth
+        pip install google-api-python-client google-auth requests
 
     - name: Skript ausführen und E-Mail senden
       env:
@@ -35,6 +35,8 @@ jobs:
         import io
         import zipfile
         import smtplib
+        import time
+        import requests
         from email.mime.text import MIMEText
         from email.mime.multipart import MIMEMultipart
         from google.oauth2.service_account import Credentials
@@ -55,7 +57,6 @@ jobs:
 
             def extract_username(obj):
                 if isinstance(obj, dict):
-                    # Versuche alle gängigen Keys abzufangen, die Meta nutzt
                     if 'value' in obj and obj['value']:
                         result.add(str(obj['value']).lower())
                     elif 'title' in obj and obj['title']:
@@ -71,7 +72,6 @@ jobs:
 
         def find_jsons_in_folder(folder_id):
             global followers, following
-            # 1. JSON-Dateien suchen
             query = f"'{folder_id}' in parents and mimeType='application/json' and trashed=false"
             files = service.files().list(q=query, fields="files(id, name)").execute().get('files', [])
             
@@ -86,7 +86,6 @@ jobs:
                     if 'following' in fname:
                         following.update(parsed)
 
-            # 2. Unterordner rekursiv durchsuchen
             subfolders_query = f"'{folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
             subfolders = service.files().list(q=subfolders_query, fields="files(id, name)").execute().get('files', [])
             
@@ -136,11 +135,34 @@ jobs:
                         if 'following' in fname:
                             following.update(parsed)
 
-        unfollowers = sorted(list(following - followers))
+        raw_unfollowers = sorted(list(following - followers))
         print(f"Gefundene Follower: {len(followers)}, Following: {len(following)}")
-        print(f"Unfollower: {len(unfollowers)}")
+        print(f"Roh-Unfollower vor Live-Check: {len(raw_unfollowers)}")
 
-        # E-Mail versenden
+        # 2. Live-Prüfung: Ist das Profil überhaupt noch aktiv?
+        active_unfollowers = []
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+
+        print("Starte Live-Prüfung auf deaktivierte/gelöschte Accounts...")
+        for user in raw_unfollowers:
+            try:
+                url = f"https://www.instagram.com/{user}/"
+                res = requests.get(url, headers=headers, timeout=5)
+                # HTTP 404 = Seite nicht gefunden (Konto gelöscht oder deaktiviert)
+                if res.status_code == 404:
+                    print(f"-> @{user}: Account existiert nicht mehr (gelöscht/deaktiviert) -> Ausgeblendet")
+                else:
+                    active_unfollowers.append(user)
+                time.sleep(0.5) # Kurze Pause, um Rate-Limits zu vermeiden
+            except Exception as e:
+                # Bei Verbindungsfehlern sicherheitshalber aufnehmen
+                active_unfollowers.append(user)
+
+        print(f"Echte, aktive Unfollower: {len(active_unfollowers)}")
+
+        # 3. E-Mail versenden
         sender = os.environ['EMAIL_SENDER']
         receiver = os.environ['EMAIL_RECEIVER']
         password = os.environ['EMAIL_PASSWORD']
@@ -148,14 +170,14 @@ jobs:
         msg = MIMEMultipart()
         msg['From'] = sender
         msg['To'] = receiver
-        msg['Subject'] = f"Wöchentliches Insta-Update: {len(unfollowers)} Unfollower"
+        msg['Subject'] = f"Wöchentliches Insta-Update: {len(active_unfollowers)} Unfollower"
 
-        if unfollowers:
-            body = f"Folgende {len(unfollowers)} Personen folgen dir aktuell nicht zurück:\n\n"
-            for user in unfollowers:
+        if active_unfollowers:
+            body = f"Folgende {len(active_unfollowers)} Personen folgen dir aktuell nicht zurück:\n\n"
+            for user in active_unfollowers:
                 body += f"- @{user} (https://instagram.com/{user})\n"
         else:
-            body = "Super Nachrichten! Alle Personen, denen du folgst, folgen dir auch zurück 🎉"
+            body = "Super Nachrichten! Alle aktiven Personen, denen du folgst, folgen dir auch zurück 🎉"
 
         msg.attach(MIMEText(body, 'plain'))
 
