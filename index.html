@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Insta Unfollower</title>
+    <title>Insta Unfollower Checker</title>
     <style>
         :root {
             --bg-color: #000000;
@@ -57,7 +57,6 @@
             display: block;
         }
 
-        /* Hässliche Standard-Inputs verstecken und durch blaue Buttons ersetzen */
         input[type="file"] {
             display: none;
         }
@@ -135,7 +134,7 @@
         li {
             background: var(--card-bg);
             border: 1px solid var(--border-color);
-            padding: 14px 16px;
+            padding: 12px 16px;
             border-radius: 12px;
             margin-bottom: 8px;
             display: flex;
@@ -148,18 +147,30 @@
             font-weight: 600;
         }
 
+        .actions {
+            display: flex;
+            gap: 8px;
+        }
+
         .insta-link {
             background: #2c2c2e;
             color: var(--accent-blue);
             text-decoration: none;
             font-size: 13px;
             font-weight: 600;
-            padding: 6px 14px;
+            padding: 6px 12px;
             border-radius: 8px;
         }
 
-        .insta-link:active {
-            background: #3a3a3c;
+        .ignore-btn {
+            background: rgba(255, 69, 58, 0.2);
+            color: var(--danger-red);
+            border: none;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 6px 10px;
+            border-radius: 8px;
+            cursor: pointer;
         }
 
         .alert-box {
@@ -208,6 +219,8 @@
     </div>
 
     <script>
+        let ignoredUsers = JSON.parse(localStorage.getItem('insta_ignored_users') || '[]');
+
         function updateFileName(inputId, btnId, statusId) {
             const input = document.getElementById(inputId);
             const btn = document.getElementById(btnId);
@@ -221,7 +234,6 @@
             }
         }
 
-        // Aggressiver Extraktor für Usernamen aus jedem Meta-Format
         function extractUsernames(jsonObj) {
             let usernames = new Set();
 
@@ -231,21 +243,16 @@
                 if (Array.isArray(obj)) {
                     obj.forEach(item => scan(item));
                 } else if (typeof obj === 'object') {
-                    // Instagram Verschachtelung Typ 1
                     if (obj.string_list_data && Array.isArray(obj.string_list_data)) {
                         obj.string_list_data.forEach(s => {
-                            if (s && s.value) {
-                                usernames.add(cleanName(s.value));
-                            }
+                            if (s && s.value) usernames.add(cleanName(s.value));
                         });
                     }
-                    // Instagram Verschachtelung Typ 2
                     if (obj.value && typeof obj.value === 'string') {
                         if (!obj.value.startsWith('http') && !obj.value.includes(' ')) {
                             usernames.add(cleanName(obj.value));
                         }
                     }
-                    // Instagram Verschachtelung Typ 3
                     if (obj.title && typeof obj.title === 'string') {
                         if (!obj.title.includes(' ') && obj.title.length > 0) {
                             usernames.add(cleanName(obj.title));
@@ -253,9 +260,7 @@
                     }
 
                     for (let key in obj) {
-                        if (obj.hasOwnProperty(key)) {
-                            scan(obj[key]);
-                        }
+                        if (obj.hasOwnProperty(key)) scan(obj[key]);
                     }
                 }
             }
@@ -266,6 +271,33 @@
 
         function cleanName(val) {
             return val.toLowerCase().replace(/[^a-z0-9._]/g, '').trim();
+        }
+
+        // Automatische Erfassung ungültiger Profile/Systemleichen
+        function isValidUsername(username) {
+            if (!username || username.length < 1) return false;
+            // Filtert reine Zahlen-IDs heraus (Meta-Leichen)
+            if (/^\d+$/.test(username)) return false;
+            return true;
+        }
+
+        function ignoreUser(username) {
+            if (!ignoredUsers.includes(username)) {
+                ignoredUsers.push(username);
+                localStorage.setItem('insta_ignored_users', JSON.stringify(ignoredUsers));
+            }
+            const el = document.getElementById(`user-row-${username}`);
+            if (el) el.remove();
+            
+            const remaining = document.querySelectorAll('li').length;
+            const countHeader = document.querySelector('.count-header');
+            if (countHeader) {
+                if (remaining > 0) {
+                    countHeader.innerText = `${remaining} Personen folgen dir nicht zurück:`;
+                } else {
+                    document.getElementById('output').innerHTML += '<div class="alert-box alert-success" style="margin-top:15px;">🎉 Liste vollständig bereinigt!</div>';
+                }
+            }
         }
 
         async function analyze() {
@@ -289,7 +321,7 @@
 
                 let notFollowingBack = [];
                 followingSet.forEach(user => {
-                    if (user && user.length > 0 && !followersSet.has(user)) {
+                    if (isValidUsername(user) && !followersSet.has(user) && !ignoredUsers.includes(user)) {
                         notFollowingBack.push(user);
                     }
                 });
@@ -304,7 +336,7 @@
                 `;
 
                 if (followersSet.size === 0) {
-                    output.innerHTML = '<div class="alert-box alert-error">Fehler: 0 Follower in "followers_1.json" gefunden. Bitte prüfe die Datei!</div>';
+                    output.innerHTML = '<div class="alert-box alert-error">Fehler: 0 Follower in der Datei gefunden. Bitte erstelle den Export erneut mit "Gesamte Zeit"!</div>';
                     return;
                 }
 
@@ -313,12 +345,16 @@
                 } else {
                     let html = statsHtml + `<div class="count-header">${notFollowingBack.length} Personen folgen dir nicht zurück:</div><ul>`;
                     notFollowingBack.forEach(username => {
-                        html += `<li>
+                        html += `<li id="user-row-${username}">
                             <span class="user-name">@${username}</span>
-                            <a href="https://instagram.com/${username}" target="_blank" rel="noopener" class="insta-link">Profil</a>
+                            <div class="actions">
+                                <a href="https://instagram.com/${username}" target="_blank" rel="noopener" class="insta-link">Profil</a>
+                                <button class="ignore-btn" onclick="ignoreUser('${username}')">✕</button>
+                            </div>
                         </li>`;
                     });
                     html += '</ul>';
+
                     output.innerHTML = html;
                 }
 
