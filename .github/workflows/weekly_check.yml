@@ -52,29 +52,33 @@ jobs:
         def parse_json_content(content):
             data = json.loads(content)
             result = set()
-            if isinstance(data, list):
-                for item in data:
-                    if isinstance(item, dict) and 'string_list_data' in item:
-                        for s in item['string_list_data']:
-                            result.add(s['value'].lower())
-            elif isinstance(data, dict):
-                raw_list = data.get('relationships_following', [])
-                for item in raw_list:
-                    if isinstance(item, dict) and 'string_list_data' in item:
-                        for s in item['string_list_data']:
-                            result.add(s['value'].lower())
+
+            def extract_username(obj):
+                if isinstance(obj, dict):
+                    # Versuche alle gängigen Keys abzufangen, die Meta nutzt
+                    if 'value' in obj and obj['value']:
+                        result.add(str(obj['value']).lower())
+                    elif 'title' in obj and obj['title']:
+                        result.add(str(obj['title']).lower())
+                    for k, v in obj.items():
+                        extract_username(v)
+                elif isinstance(obj, list):
+                    for item in obj:
+                        extract_username(item)
+
+            extract_username(data)
             return result
 
-        # Funktion zum tiefen Durchsuchen von Unterordnern in Google Drive
         def find_jsons_in_folder(folder_id):
-            # 1. Suche nach JSON-Dateien im aktuellen Ordner
+            global followers, following
+            # 1. JSON-Dateien suchen
             query = f"'{folder_id}' in parents and mimeType='application/json' and trashed=false"
             files = service.files().list(q=query, fields="files(id, name)").execute().get('files', [])
             
             for jf in files:
                 fname = jf['name'].lower()
                 if 'followers' in fname or 'following' in fname:
-                    print(f"Datei gefunden: {jf['name']}")
+                    print(f"Gefundene Datei: {jf['name']}")
                     file_data = service.files().get_media(fileId=jf['id']).execute()
                     parsed = parse_json_content(file_data.decode('utf-8'))
                     if 'followers' in fname:
@@ -82,14 +86,14 @@ jobs:
                     if 'following' in fname:
                         following.update(parsed)
 
-            # 2. Suche nach weiteren Unterordnern und gehe tiefer rein (Rekursion)
+            # 2. Unterordner rekursiv durchsuchen
             subfolders_query = f"'{folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
             subfolders = service.files().list(q=subfolders_query, fields="files(id, name)").execute().get('files', [])
             
             for sf in subfolders:
                 find_jsons_in_folder(sf['id'])
 
-        # Suche nach allen Quellen
+        # Suche nach Dateien/Ordnern
         results = service.files().list(
             q="mimeType='application/zip' or mimeType='application/x-zip-compressed' or mimeType='application/vnd.google-apps.folder'",
             orderBy="createdTime desc",
@@ -110,11 +114,8 @@ jobs:
 
         print(f"Verarbeite Quelle: {target_item['name']} ({target_item['mimeType']})")
 
-        # Fall A: Ordner-Struktur (geht beliebig tief in Unterordner)
         if target_item['mimeType'] == 'application/vnd.google-apps.folder':
             find_jsons_in_folder(target_item['id'])
-
-        # Fall B: ZIP-Datei (durchsucht alle Pfade innerhalb der ZIP)
         else:
             request = service.files().get_media(fileId=target_item['id'])
             fh = io.BytesIO()
@@ -135,7 +136,6 @@ jobs:
                         if 'following' in fname:
                             following.update(parsed)
 
-        # Unfollower berechnen
         unfollowers = sorted(list(following - followers))
         print(f"Gefundene Follower: {len(followers)}, Following: {len(following)}")
         print(f"Unfollower: {len(unfollowers)}")
@@ -167,4 +167,5 @@ jobs:
             print("E-Mail erfolgreich versendet!")
         except Exception as e:
             print(f"Fehler beim Mail-Versand: {e}")
+            raise e
         EOF
