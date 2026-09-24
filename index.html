@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Insta Unfollower Checker</title>
+    <title>Insta Unfollower</title>
     <style>
         :root {
             --bg-color: #000000;
@@ -57,8 +57,22 @@
             display: block;
         }
 
-        input[type="file"] {
+        input[type="file"], input[type="password"], input[type="text"] {
             display: none;
+        }
+
+        .text-input {
+            display: block !important;
+            width: 100%;
+            height: 40px;
+            background: #2c2c2e;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: #fff;
+            padding: 0 10px;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+            font-size: 13px;
         }
 
         .file-btn, .action-btn {
@@ -173,6 +187,29 @@
             cursor: pointer;
         }
 
+        .restore-btn {
+            background: rgba(48, 209, 88, 0.2);
+            color: var(--success-green);
+            border: none;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 6px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .accordion-btn {
+            background: transparent;
+            color: var(--text-muted);
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            border-radius: 8px;
+            width: 100%;
+            font-size: 13px;
+            margin-top: 20px;
+            cursor: pointer;
+        }
+
         .alert-box {
             padding: 14px;
             border-radius: 12px;
@@ -219,6 +256,7 @@
     </div>
 
     <script>
+        // Synchronisations-Speicher
         let ignoredUsers = JSON.parse(localStorage.getItem('insta_ignored_users') || '[]');
 
         function updateFileName(inputId, btnId, statusId) {
@@ -273,10 +311,8 @@
             return val.toLowerCase().replace(/[^a-z0-9._]/g, '').trim();
         }
 
-        // Automatische Erfassung ungültiger Profile/Systemleichen
         function isValidUsername(username) {
             if (!username || username.length < 1) return false;
-            // Filtert reine Zahlen-IDs heraus (Meta-Leichen)
             if (/^\d+$/.test(username)) return false;
             return true;
         }
@@ -286,17 +322,19 @@
                 ignoredUsers.push(username);
                 localStorage.setItem('insta_ignored_users', JSON.stringify(ignoredUsers));
             }
-            const el = document.getElementById(`user-row-${username}`);
-            if (el) el.remove();
-            
-            const remaining = document.querySelectorAll('li').length;
-            const countHeader = document.querySelector('.count-header');
-            if (countHeader) {
-                if (remaining > 0) {
-                    countHeader.innerText = `${remaining} Personen folgen dir nicht zurück:`;
-                } else {
-                    document.getElementById('output').innerHTML += '<div class="alert-box alert-success" style="margin-top:15px;">🎉 Liste vollständig bereinigt!</div>';
-                }
+            analyze(); // Liste neu aufbauen
+        }
+
+        function restoreUser(username) {
+            ignoredUsers = ignoredUsers.filter(u => u !== username);
+            localStorage.setItem('insta_ignored_users', JSON.stringify(ignoredUsers));
+            analyze(); // Liste neu aufbauen
+        }
+
+        function toggleIgnoredList() {
+            const list = document.getElementById('ignoredListContainer');
+            if (list) {
+                list.style.display = list.style.display === 'none' ? 'block' : 'none';
             }
         }
 
@@ -319,14 +357,28 @@
                 const followersSet = extractUsernames(JSON.parse(fText));
                 const followingSet = extractUsernames(JSON.parse(fgText));
 
+                // AUTOMATISCHE RE-AKTIVIERUNG: 
+                // Wenn ein ehemals ignorierter User plötzlich wieder in den Followern auftaucht, löschen wir die Ignorier-Markierung!
+                ignoredUsers = ignoredUsers.filter(user => {
+                    return !followersSet.has(user);
+                });
+                localStorage.setItem('insta_ignored_users', JSON.stringify(ignoredUsers));
+
                 let notFollowingBack = [];
+                let activeIgnoredInList = [];
+
                 followingSet.forEach(user => {
-                    if (isValidUsername(user) && !followersSet.has(user) && !ignoredUsers.includes(user)) {
-                        notFollowingBack.push(user);
+                    if (isValidUsername(user) && !followersSet.has(user)) {
+                        if (ignoredUsers.includes(user)) {
+                            activeIgnoredInList.push(user);
+                        } else {
+                            notFollowingBack.push(user);
+                        }
                     }
                 });
 
                 notFollowingBack.sort();
+                activeIgnoredInList.sort();
 
                 let statsHtml = `
                     <div class="stats-badge">
@@ -336,14 +388,16 @@
                 `;
 
                 if (followersSet.size === 0) {
-                    output.innerHTML = '<div class="alert-box alert-error">Fehler: 0 Follower in der Datei gefunden. Bitte erstelle den Export erneut mit "Gesamte Zeit"!</div>';
+                    output.innerHTML = '<div class="alert-box alert-error">Fehler: 0 Follower in der Datei. Bitte starte den Export mit "Gesamte Zeit" neu!</div>';
                     return;
                 }
 
+                let html = statsHtml;
+
                 if (notFollowingBack.length === 0) {
-                    output.innerHTML = statsHtml + '<div class="alert-box alert-success">🎉 Alle Konten, denen du folgst, folgen dir zurück!</div>';
+                    html += '<div class="alert-box alert-success">🎉 Alle Konten, denen du folgst, folgen dir zurück!</div>';
                 } else {
-                    let html = statsHtml + `<div class="count-header">${notFollowingBack.length} Personen folgen dir nicht zurück:</div><ul>`;
+                    html += `<div class="count-header">${notFollowingBack.length} Personen folgen dir nicht zurück:</div><ul>`;
                     notFollowingBack.forEach(username => {
                         html += `<li id="user-row-${username}">
                             <span class="user-name">@${username}</span>
@@ -354,9 +408,29 @@
                         </li>`;
                     });
                     html += '</ul>';
-
-                    output.innerHTML = html;
                 }
+
+                // Bereich für ausgeblendete / gelöschte Konten
+                if (activeIgnoredInList.length > 0) {
+                    html += `
+                        <button class="accordion-btn" onclick="toggleIgnoredList()">
+                            Ausgeblendete / Gelöschte Konten (${activeIgnoredInList.length}) ▾
+                        </button>
+                        <div id="ignoredListContainer" style="display:none; margin-top:10px;">
+                            <ul>
+                    `;
+                    activeIgnoredInList.forEach(username => {
+                        html += `<li>
+                            <span class="user-name" style="opacity:0.6;">@${username}</span>
+                            <div class="actions">
+                                <button class="restore-btn" onclick="restoreUser('${username}')">Wiederherstellen</button>
+                            </div>
+                        </li>`;
+                    });
+                    html += `</ul></div>`;
+                }
+
+                output.innerHTML = html;
 
             } catch (err) {
                 output.innerHTML = `<div class="alert-box alert-error">Fehler beim Lesen: ${err.message}</div>`;
